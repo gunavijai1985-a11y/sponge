@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D SpongeBob SquarePants</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #002c4d;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+            z-index: 100;
+        }
+
+        #ui h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+        }
+
+        #ui p {
+            margin: 5px 0 0;
+            opacity: 0.8;
+        }
+
+        #status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2rem;
+            z-index: 50;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px 30px;
+            border-radius: 8px;
+        }
+
+        #debug {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #ff4444;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px;
+            max-width: 90%;
+            display: none;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        #controls-btn {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            pointer-events: auto;
+        }
+
+        #controls-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #F9E24D;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(249, 226, 77, 0.4);
+        }
+
+        #controls-btn:active {
+            transform: translateY(0);
+        }
+    </style>
+    <!-- Use specific stable versions of Three.js and OrbitControls -->
+    <script src="https://unpkg.com/three@0.146.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+    <div id="ui">
+        <h1>SPONGEBOB SQUAREPANTS</h1>
+        <p>360° Detailed 3D Model View</p>
+    </div>
+    <div id="controls">
+        <button id="controls-btn">STOP</button>
+    </div>
+    <div id="status">Loading Model Assets...</div>
+    <div id="debug"></div>
+
+    <script>
+        (function () {
+            const debugEl = document.getElementById('debug');
+            const statusEl = document.getElementById('status');
+
+            function log(msg, isError = false) {
+                console.log(msg);
+                if (isError) {
+                    debugEl.style.display = 'block';
+                    debugEl.innerHTML += '<div style="color:#ff6666">ERROR: ' + msg + '</div>';
+                }
+            }
+
+            window.onerror = function (msg, url, line) {
+                log(msg + " at " + line, true);
+            };
+
+            try {
+                if (typeof THREE === 'undefined') {
+                    throw new Error("Three.js failed to load. Check your internet connection.");
+                }
+                log("Three.js loaded successfully.");
+
+                // Scene Setup
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.shadowMap.enabled = true;
+                document.body.appendChild(renderer.domElement);
+
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                directionalLight.position.set(5, 10, 7.5);
+                directionalLight.castShadow = true;
+                scene.add(directionalLight);
+
+                const pointLight = new THREE.PointLight(0xffcc00, 1, 10);
+                pointLight.position.set(-2, 3, 2);
+                scene.add(pointLight);
+
+                // SpongeBob Group
+                const spongeBob = new THREE.Group();
+                scene.add(spongeBob);
+
+                // Materials
+                const yellowMat = new THREE.MeshPhongMaterial({ color: 0xF9E24D });
+                const darkYellowMat = new THREE.MeshPhongMaterial({ color: 0xBBAB22 });
+                const whiteMat = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
+                const redMat = new THREE.MeshPhongMaterial({ color: 0xE53636 });
+                const brownMat = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+                const blackMat = new THREE.MeshPhongMaterial({ color: 0x111111 });
+                const blueMat = new THREE.MeshPhongMaterial({ color: 0x3A9BD5 });
+
+                log("Materials created.");
+
+                // 1. Body (Sponge)
+                const bodyGeom = new THREE.BoxGeometry(2, 2.5, 1.2, 8, 8, 8);
+                const positions = bodyGeom.attributes.position;
+                for (let i = 0; i < positions.count; i++) {
+                    const x = positions.getX(i);
+                    const y = positions.getY(i);
+                    const z = positions.getZ(i);
+                    const wave = Math.sin(y * 5) * 0.05 + Math.cos(x * 5) * 0.05;
+                    positions.setXYZ(i, x + wave, y + wave, z + wave);
+                }
+                bodyGeom.computeVertexNormals();
+                const body = new THREE.Mesh(bodyGeom, yellowMat);
+                body.position.y = 1.2;
+                body.castShadow = true;
+                spongeBob.add(body);
+
+                // Holes
+                const holeGeom = new THREE.CircleGeometry(0.1, 8);
+                for (let i = 0; i < 15; i++) {
+                    const hole = new THREE.Mesh(holeGeom, darkYellowMat);
+                    const side = Math.floor(Math.random() * 4);
+                    // Body height is 2.5 (from -1.25 to 1.25 local Y)
+                    // We constrain y to -1.0 to 1.0 to stay within bounds
+                    const yPos = Math.random() * 2.0 - 1.0;
+                    if (side === 0) { // Front
+                        hole.position.set(Math.random() * 1.6 - 0.8, yPos, 0.61);
+                    } else if (side === 1) { // Back
+                        hole.position.set(Math.random() * 1.6 - 0.8, yPos, -0.61);
+                        hole.rotation.y = Math.PI;
+                    } else { // Sides
+                        const xPos = side === 2 ? -1.01 : 1.01;
+                        hole.position.set(xPos, yPos, Math.random() * 1.0 - 0.5);
+                        hole.rotation.y = side === 2 ? -Math.PI / 2 : Math.PI / 2;
+                    }
+                    body.add(hole);
+                }
+
+                log("Body and holes created.");
+
+                // 2. Eyes
+                const eyeGeom = new THREE.SphereGeometry(0.4, 32, 32);
+                const leftEye = new THREE.Mesh(eyeGeom, whiteMat);
+                leftEye.position.set(-0.45, 1.8, 0.6);
+                leftEye.scale.set(1, 1, 0.3);
+                spongeBob.add(leftEye);
+
+                const rightEye = leftEye.clone();
+                rightEye.position.x = 0.45;
+                spongeBob.add(rightEye);
+
+                // Pupils
+                const pupilGeom = new THREE.SphereGeometry(0.15, 32, 32);
+                const leftPupil = new THREE.Mesh(pupilGeom, blueMat);
+                leftPupil.position.set(-0.45, 1.8, 0.72);
+                leftPupil.scale.set(1, 1, 0.1);
+                spongeBob.add(leftPupil);
+
+                const rightPupil = leftPupil.clone();
+                rightPupil.position.x = 0.45;
+                spongeBob.add(rightPupil);
+
+                const blackPupilGeom = new THREE.SphereGeometry(0.07, 32, 32);
+                const leftBlackPupil = new THREE.Mesh(blackPupilGeom, blackMat);
+                leftBlackPupil.position.set(-0.45, 1.8, 0.75);
+                leftBlackPupil.scale.set(1, 1, 0.1);
+                spongeBob.add(leftBlackPupil);
+
+                const rightBlackPupil = leftBlackPupil.clone();
+                rightBlackPupil.position.x = 0.45;
+                spongeBob.add(rightBlackPupil);
+
+                // Eyelashes
+                for (let i = 0; i < 3; i++) {
+                    const lashGeom = new THREE.BoxGeometry(0.02, 0.15, 0.02);
+                    const angle = (i - 1) * 0.3;
+                    const lashL = new THREE.Mesh(lashGeom, blackMat);
+                    lashL.position.set(-0.45 + Math.sin(angle) * 0.4, 2.2 + Math.cos(angle) * 0.1, 0.6);
+                    lashL.rotation.z = -angle;
+                    spongeBob.add(lashL);
+
+                    const lashR = new THREE.Mesh(lashGeom, blackMat);
+                    lashR.position.set(0.45 + Math.sin(angle) * 0.4, 2.2 + Math.cos(angle) * 0.1, 0.6);
+                    lashR.rotation.z = -angle;
+                    spongeBob.add(lashR);
+                }
+
+                // 3. Nose
+                const noseGeom = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 16);
+                const nose = new THREE.Mesh(noseGeom, yellowMat);
+                nose.position.set(0, 1.5, 0.85);
+                nose.rotation.x = -Math.PI / 2.2;
+                spongeBob.add(nose);
+
+                // 4. Mouth & Cheeks
+                const mouthGeom = new THREE.TorusGeometry(0.5, 0.03, 16, 100, Math.PI);
+                const mouth = new THREE.Mesh(mouthGeom, redMat);
+                mouth.position.set(0, 1.3, 0.6);
+                mouth.rotation.x = Math.PI;
+                spongeBob.add(mouth);
+
+                // Cheeks
+                const cheekGeom = new THREE.CircleGeometry(0.15, 16);
+                const cheekMat = new THREE.MeshPhongMaterial({ color: 0xFF7F7F, transparent: true, opacity: 0.6 });
+                const leftCheek = new THREE.Mesh(cheekGeom, cheekMat);
+                leftCheek.position.set(-0.7, 1.4, 0.62);
+                spongeBob.add(leftCheek);
+
+                const rightCheek = leftCheek.clone();
+                rightCheek.position.x = 0.7;
+                spongeBob.add(rightCheek);
+
+                // Freckles
+                const freckleGeom = new THREE.CircleGeometry(0.02, 8);
+                for (let i = 0; i < 3; i++) {
+                    const fL = new THREE.Mesh(freckleGeom, redMat);
+                    fL.position.set(-0.72 + (i - 1) * 0.05, 1.35 + (i % 2) * 0.02, 0.63);
+                    spongeBob.add(fL);
+                    const fR = new THREE.Mesh(freckleGeom, redMat);
+                    fR.position.set(0.72 + (i - 1) * 0.05, 1.35 + (i % 2) * 0.02, 0.63);
+                    spongeBob.add(fR);
+                }
+
+                // Teeth
+                const toothGeom = new THREE.BoxGeometry(0.15, 0.15, 0.05);
+                const leftTooth = new THREE.Mesh(toothGeom, whiteMat);
+                leftTooth.position.set(-0.1, 1.25, 0.62);
+                spongeBob.add(leftTooth);
+
+                const rightTooth = leftTooth.clone();
+                rightTooth.position.x = 0.1;
+                spongeBob.add(rightTooth);
+
+                log("Face details completed.");
+
+                // 5. Clothing
+                const shirtGeom = new THREE.BoxGeometry(2.05, 0.4, 1.25);
+                const shirt = new THREE.Mesh(shirtGeom, whiteMat);
+                shirt.position.y = 0.2;
+                spongeBob.add(shirt);
+
+                const tieGeom = new THREE.ConeGeometry(0.15, 0.4, 4);
+                const tie = new THREE.Mesh(tieGeom, redMat);
+                tie.position.set(0, 0.15, 0.65);
+                tie.rotation.z = Math.PI;
+                spongeBob.add(tie);
+
+                const pantsGeom = new THREE.BoxGeometry(2.05, 0.6, 1.25);
+                const pants = new THREE.Mesh(pantsGeom, brownMat);
+                pants.position.y = -0.3;
+                spongeBob.add(pants);
+
+                // Belt Loops
+                for (let i = 0; i < 8; i++) {
+                    const loopGeom = new THREE.BoxGeometry(0.18, 0.08, 0.05);
+                    const loop = new THREE.Mesh(loopGeom, blackMat);
+                    const angle = (i / 8) * Math.PI * 2;
+                    // Position around the pants box
+                    if (i % 4 === 0 || i % 4 === 2) { // Front/Back
+                        loop.position.set((i < 4 ? 1 : -1) * (i % 4 === 0 ? 0.5 : -0.5), 0, (i < 4 ? 0.63 : -0.63));
+                    } else { // Sides
+                        loop.position.set((i < 4 ? 1.03 : -1.03), 0, (i % 4 === 1 ? 0.3 : -0.3));
+                        loop.rotation.y = Math.PI / 2;
+                    }
+                    pants.add(loop);
+                }
+
+                // 6. Limbs
+                const legGeom = new THREE.CylinderGeometry(0.08, 0.08, 1);
+                const leftLeg = new THREE.Mesh(legGeom, yellowMat);
+                leftLeg.position.set(-0.5, -0.8, 0);
+                spongeBob.add(leftLeg);
+
+                const rightLeg = leftLeg.clone();
+                rightLeg.position.x = 0.5;
+                spongeBob.add(rightLeg);
+
+                // Socks
+                const sockGeom = new THREE.CylinderGeometry(0.09, 0.09, 0.35);
+                const leftSock = new THREE.Mesh(sockGeom, whiteMat);
+                leftSock.position.set(-0.5, -1, 0);
+                spongeBob.add(leftSock);
+
+                const rightSock = leftSock.clone();
+                rightSock.position.x = 0.5;
+                spongeBob.add(rightSock);
+
+                // Sock Stripes
+                const redStripeGeom = new THREE.TorusGeometry(0.095, 0.01, 8, 32);
+                const blueStripeGeom = new THREE.TorusGeometry(0.095, 0.01, 8, 32);
+                [leftSock, rightSock].forEach(sock => {
+                    const redStripe = new THREE.Mesh(redStripeGeom, redMat);
+                    redStripe.rotation.x = Math.PI / 2;
+                    redStripe.position.y = 0.1;
+                    sock.add(redStripe);
+                    const blueStripe = new THREE.Mesh(blueStripeGeom, blueMat);
+                    blueStripe.rotation.x = Math.PI / 2;
+                    blueStripe.position.y = 0.03;
+                    sock.add(blueStripe);
+                });
+
+                const shoeGeom = new THREE.SphereGeometry(0.25, 16, 16);
+                const leftShoe = new THREE.Mesh(shoeGeom, blackMat);
+                leftShoe.position.set(-0.5, -1.3, 0.1);
+                leftShoe.scale.set(1.2, 0.8, 1.5);
+                spongeBob.add(leftShoe);
+
+                const rightShoe = leftShoe.clone();
+                rightShoe.position.x = 0.5;
+                spongeBob.add(rightShoe);
+
+                // Arms
+                const armGeom = new THREE.CylinderGeometry(0.06, 0.06, 1.2);
+                const leftArm = new THREE.Mesh(armGeom, yellowMat);
+                leftArm.position.set(-1.1, 0.8, 0);
+                leftArm.rotation.z = Math.PI / 4;
+                spongeBob.add(leftArm);
+
+                const handGeom = new THREE.SphereGeometry(0.12, 16, 16);
+                const leftHand = new THREE.Mesh(handGeom, yellowMat);
+                leftHand.position.y = -0.6;
+                leftArm.add(leftHand);
+
+                const rightArm = new THREE.Mesh(armGeom, yellowMat);
+                rightArm.position.set(1.1, 1.2, 0);
+                rightArm.rotation.z = -Math.PI / 2;
+                spongeBob.add(rightArm);
+
+                const rightHand = new THREE.Mesh(handGeom, yellowMat);
+                rightHand.position.y = -0.6;
+                rightArm.add(rightHand);
+
+                log("Clothing and limbs completed.");
+
+                // Bubbles
+                const bubbleGeom = new THREE.SphereGeometry(0.05, 8, 8);
+                const bubbleMat = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+                for (let i = 0; i < 30; i++) {
+                    const bubble = new THREE.Mesh(bubbleGeom, bubbleMat);
+                    bubble.position.set(Math.random() * 20 - 10, Math.random() * 20 - 10, Math.random() * 20 - 10);
+                    scene.add(bubble);
+                    bubble.userData = { speed: Math.random() * 0.02 + 0.01 };
+                }
+
+                // Camera Position
+                camera.position.set(0, 2, 8);
+
+                // Controls
+                let controls;
+                if (typeof THREE.OrbitControls !== 'undefined') {
+                    controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.enableDamping = true;
+                    controls.autoRotate = true;
+                    controls.autoRotateSpeed = 6;
+                    log("OrbitControls initialised.");
+                } else {
+                    log("OrbitControls not found, using basic rotation.", true);
+                }
+
+                // Animation Loop
+                const clock = new THREE.Clock();
+                let isPaused = false;
+
+                const btn = document.getElementById('controls-btn');
+                btn.addEventListener('click', () => {
+                    isPaused = !isPaused;
+                    btn.textContent = isPaused ? 'PLAY' : 'STOP';
+                    btn.style.borderColor = isPaused ? '#4df974' : '#F9E24D';
+                    if (controls) controls.autoRotate = !isPaused;
+                    log(isPaused ? "Animation paused" : "Animation resumed");
+                });
+
+                function animate() {
+                    requestAnimationFrame(animate);
+
+                    if (!isPaused) {
+                        const delta = clock.getElapsedTime();
+
+                        // Procedural waving
+                        if (rightArm) rightArm.rotation.x = Math.sin(delta * 5) * 0.2;
+
+                        // Bubbles rising
+                        scene.children.forEach(child => {
+                            if (child.userData && child.userData.speed) {
+                                child.position.y += child.userData.speed;
+                                if (child.position.y > 10) child.position.y = -10;
+                            }
+                        });
+
+                        // Self rotation if no controls
+                        if (!controls) {
+                            spongeBob.rotation.y += 0.01;
+                        } else {
+                            controls.update();
+                        }
+                    } else if (controls) {
+                        controls.update(); // Keep controls responsive even when paused
+                    }
+
+                    renderer.render(scene, camera);
+                }
+
+                // Handle Resize
+                window.addEventListener('resize', () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                animate();
+                log("Animation loop started.");
+
+                // Hide loading UI
+                statusEl.style.display = 'none';
+
+            } catch (err) {
+                log(err.message, true);
+                statusEl.innerHTML = "Error loading model. Check console.";
+                statusEl.style.background = "rgba(255,0,0,0.5)";
+            }
+        })();
+    </script>
+</body>
+
+</html>
